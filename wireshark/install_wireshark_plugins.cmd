@@ -1,0 +1,1 @@
+xcopy /S /I /R AppData\Roaming\Wireshark %AppData%\Wireshark
