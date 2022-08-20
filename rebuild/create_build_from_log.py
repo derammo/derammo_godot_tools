@@ -133,6 +133,7 @@ class TargetInfo:
     data: Dict[str, Any]
 
     includes: Dict[str, Dict] = field(default_factory=dict)
+    libpaths: Dict[str, Dict] = field(default_factory=dict)
     defines: Dict[str, Dict] = field(default_factory=dict)
     compile_settings: Dict[str, Dict] = field(default_factory=dict)
     lib_settings: Dict[str, Dict] = field(default_factory=dict)
@@ -286,6 +287,7 @@ def write_module_settings(path, module: ModuleInfo, condition=None):
     build_additional(clcompile, 'PreprocessorDefinitions', module.defines)
     if module.compile_settings:
         build_additional(clcompile, 'AdditionalOptions', module.compile_settings)
+    if module.includes:
         build_additional(clcompile, 'AdditionalIncludeDirectories', module.includes)
     for compile_setting_name, compile_setting_value in settings_processing.module_compile_xml.items():
         compile_setting = xml.SubElement(clcompile, compile_setting_name)
@@ -309,7 +311,13 @@ def write_module_libraries(path, module: ModuleInfo, condition=None):
     # NOTE: no %(AdditionalDependencies) since we don't use the defaults, just what the xml says
 
     # attach linker flags
-    build_additional(link, 'AdditionalOptions', {'linkflags': module.data['linkflags']})
+    if 'linkflags' in module.data:
+        build_additional(link, 'AdditionalOptions', {'linkflags': module.data['linkflags']})
+
+    if len(module.libpaths) > 0:
+        additional_library_directories = xml.SubElement(link, 'AdditionalLibraryDirectories')
+        additional_library_directories.text = module.libpaths
+
     write_to_file(path, doc)
 
 
@@ -409,6 +417,22 @@ def process_include(text: str, is_module: bool):
     processed = []
     for include in includes:
         clean = include.strip()
+        if len(clean) < 1:
+            continue
+        if pathlib.Path(clean).is_absolute():
+            processed.append(clean)
+        else:
+            processed.append(f'$(SolutionDir)\\{clean}')
+    return ';'.join(processed)
+
+
+def process_libpath(text: str, is_module: bool):
+    libpaths = text.split('/LIBPATH:')
+    processed = []
+    for libpath in libpaths:
+        clean = libpath.strip()
+        if len(clean) < 1:
+            continue
         if pathlib.Path(clean).is_absolute():
             processed.append(clean)
         else:
@@ -492,6 +516,9 @@ def build_module(name, module_data) -> ModuleInfo:
     if not (module.path / 'Project.properties').exists():
         write_project(module.path / 'Project.properties', name, module.path.name)
     populate_intermediate_dirs(name)
+
+    if 'libpath' in module_data:
+        module.libpaths = process_libpath(module_data['libpath'], True)
 
     if 'sources' in module_data:
         module.sources, module.opaque_objects = calculate_item_settings(module_data['sources'].split(" "),
@@ -712,7 +739,8 @@ def main():
         data = {}
         for element in child:
             if element.text:
-                data[element.tag] = re.sub(r' *\$\) *| *\$\( *', ' ', element.text)
+                # remove SCons magic parentheses
+                data[element.tag] = re.sub(r' +\$\)($| +)|(^| +)\$\( +', ' ', element.text)
         match child.tag:
             case "cc":
                 cc[child.find("target").text] = data
@@ -721,6 +749,9 @@ def main():
                 cxx[child.find("target").text] = data
                 pass
             case "ar":
+                data.pop('libpath')
+                data.pop('linkflags')
+                data.pop('libs')
                 ar[get_project_basename(child)] = data
             case "link":
                 link[get_project_basename(child)] = data
