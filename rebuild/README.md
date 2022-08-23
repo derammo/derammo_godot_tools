@@ -16,7 +16,7 @@ Not all outputs are created by the alternative projects.  The equivalent SCons b
 
 ## Must patch SConstruct
 
-The patch to the Godot SCondstruct file must be applied first
+The patch to the Godot SConstruct file must be applied first
 
 ```
 cd ..\..\godot
