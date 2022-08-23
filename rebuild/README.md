@@ -33,8 +33,8 @@ This is a work in progress.
 
 The code for release_debug builds will follow soon.  I have no plans to support 32 bit, but contributions are welcome.
 
-`clean_console_build.cmd` shows the procedure for making a console build without Mono (C#)
-`clean_mono_build.cmd` does the mono compilation procedure (multiple build passes) to support Mono (C#) without dotnet6
+- `clean_console_build.cmd` shows the procedure for making a console build without Mono (C#)
+- `clean_mono_build.cmd` does the mono compilation procedure (multiple build passes) to support Mono (C#) without dotnet6
 
 ## Only Visual Studio 2019 supported
 
