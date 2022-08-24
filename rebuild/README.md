@@ -36,9 +36,11 @@ The code for release_debug builds will follow soon.  I have no plans to support 
 - `clean_console_build.cmd` shows the procedure for making a console build without Mono (C#)
 - `clean_mono_build.cmd` does the compilation procedure to support `modules\mono` (C#)
 
-## Only Visual Studio 2019 supported
+## Only Visual Studio 2019 and Visual Studio 2022 are supported
 
-Templates for 2022 have not yet been added.
+Non-C# builds of Godot will work with either.
+
+C# (Mono) builds of Godot require Visual Studio 2022 because of .NET 6.0 usage.
 
 ## Some files are not yet added to projects
 
