@@ -16,7 +16,7 @@ Not all outputs are created by the alternative projects.  The equivalent SCons b
 
 ## Must patch SConstruct
 
-The patch to the Godot SCondstruct file must be applied first
+The patch to the Godot SConstruct file must be applied first
 
 ```
 cd ..\..\godot
@@ -29,9 +29,12 @@ This will change if the relevant PR is approved and the xml log feature is added
 
 This is a work in progress.
 
-## Only 64 bit Debug builds without .NET supported
+## Only 64 bit Debug builds supported
 
-The code for release_debug and C# enabled builds will follow soon.  I have no plans to support 32 bit, but contributions are welcome.
+The code for release_debug builds will follow soon.  I have no plans to support 32 bit, but contributions are welcome.
+
+- `clean_console_build.cmd` shows the procedure for making a console build without Mono (C#)
+- `clean_mono_build.cmd` does the mono compilation procedure (multiple build passes) to support Mono (C#) without dotnet6
 
 ## Only Visual Studio 2019 supported
 
