@@ -749,9 +749,9 @@ def main():
                 cxx[child.find("target").text] = data
                 pass
             case "ar":
-                data.pop('libpath')
-                data.pop('linkflags')
-                data.pop('libs')
+                data.pop('libpath', None)
+                data.pop('linkflags', None)
+                data.pop('libs', None)
                 ar[get_project_basename(child)] = data
             case "link":
                 link[get_project_basename(child)] = data
