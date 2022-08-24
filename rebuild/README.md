@@ -34,7 +34,7 @@ This is a work in progress.
 The code for release_debug builds will follow soon.  I have no plans to support 32 bit, but contributions are welcome.
 
 - `clean_console_build.cmd` shows the procedure for making a console build without Mono (C#)
-- `clean_mono_build.cmd` does the mono compilation procedure to support Mono (C#)
+- `clean_mono_build.cmd` does the compilation procedure to support `modules\mono` (C#)
 
 ## Only Visual Studio 2019 supported
 
@@ -63,5 +63,5 @@ This will create a clean debug console build (the only config supported so far) 
 
 ## Mono Instructions
 
-- `clean_mono_build.cmd` does the mono compilation procedure to support Mono (C#)
+- `clean_mono_build.cmd` does the compilation procedure to support `modules\mono` (C#)
 - it also creates a `nuget.config` file in the current folder (Godot root) that you can copy to your Godot project's folder to set up paths
