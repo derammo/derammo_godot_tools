@@ -8,4 +8,4 @@ scons -j16 vulkan=yes opengl3=yes platform=windows windows_subsystem=console tar
 
 scons -j16 vulkan=yes opengl3=yes platform=windows windows_subsystem=console target=debug vsproj=yes xml=yes tests=yes > %XML_PATH%.txt
 
-call ..\derammo_godot_tools\rebuild\create_build_from_log.cmd console_debug
+call ..\derammo_godot_tools\rebuild\create_build_from_log.cmd console_debug vs19

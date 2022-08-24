@@ -9,5 +9,5 @@ findstr __BUILD_DATA_MAGIC_COOKIE__ %XML_PATH%.txt > %XML_PATH%
 
 @REM generate the equivalent Visual Studio build in a folder that is already gitignored anyway
 pushd ..\derammo_godot_tools\rebuild\
-python create_build_from_log.py ..\%XML_PATH% -S ..\..\%BASE_NAME% -B ..\..\%BASE_NAME% -M vs19 --closed --edit-and-continue
+python create_build_from_log.py ..\%XML_PATH% -S ..\..\%BASE_NAME% -B ..\..\%BASE_NAME% -M %2 --closed --edit-and-continue
 popd

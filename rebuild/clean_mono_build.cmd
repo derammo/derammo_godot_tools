@@ -24,7 +24,7 @@ if ERRORLEVEL 1 (
     exit /b 5
 )
 
-call ..\derammo_godot_tools\rebuild\create_build_from_log.cmd console_debug_mono
+call ..\derammo_godot_tools\rebuild\create_build_from_log.cmd console_debug_mono vs22
 
 @REM generate mono glue
 bin\godot.windows.tools.64.mono --generate-mono-glue modules\mono\glue
