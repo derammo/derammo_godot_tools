@@ -27,7 +27,11 @@ if ERRORLEVEL 1 (
 call ..\derammo_godot_tools\rebuild\create_build_from_log.cmd console_debug_mono vs22
 
 @REM generate mono glue
-bin\godot.windows.tools.64.mono --generate-mono-glue modules\mono\glue
+if exist "bin\godot.windows.tools.64.mono" (
+    bin\godot.windows.tools.64.mono --generate-mono-glue modules\mono\glue
+) else (
+    bin\godot.windows.tools.x86_64.mono --generate-mono-glue modules\mono\glue
+)
 
 @REM generate solutions
 @for %%I in (.) do @set NUGET_SOURCE=%%~fI\bld\nuget

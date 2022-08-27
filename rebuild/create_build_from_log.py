@@ -41,7 +41,7 @@ command_line.add_argument('--source-repo-path', '-S', type=str, default='../godo
 command_line.add_argument('--build-path', '-B', type=str, default='../godot_build/',
                           help='path to the build tree to generate; all project files and temporary output go here')
 command_line.add_argument('--closed', default=False, action='store_true', help='create one self-contained project file per module instead of the default inheritance tree')
-command_line.add_argument('--build-flavor', '-F', type=str, default=".windows.tools.64",
+command_line.add_argument('--build-flavor', '-F', type=str, default=".windows.tools.x86_64",
                           help='the decoration for binaries created by the build for which XML is provided')
 command_line.add_argument('--verbose', default=False, action='store_true', help='prints some more verbose output')
 command_line.add_argument('--vs-version', '-M', type=str, default='vs19',
@@ -74,6 +74,8 @@ def sanitize_directory_path(path: str) -> str:
 
 options.source_repo_path = sanitize_directory_path(options.source_repo_path)
 options.build_path = sanitize_directory_path(options.build_path)
+options.repo_name = pathlib.Path(options.source_repo_path).name
+options.project_guid_namespace = uuid.UUID(int=0x1337)
 
 # Set up flags/settings processing, which only changes the build when requested, so that by default
 # it will be the same as what SCons made.
@@ -95,7 +97,7 @@ if options.in_tree:
 if options.merge:
     raise NotImplementedError("--merge")
 
-if options.build_flavor != ".windows.tools.64":
+if options.build_flavor != ".windows.tools.x86_64":
     raise NotImplementedError("--build-flavor")
 
 
@@ -202,7 +204,7 @@ def write_project(path, path_relative_to_source_repo, project_namespace):
     project = doc.getroot()
     property_group = xml.SubElement(project, 'PropertyGroup')
     guid_element = xml.SubElement(property_group, 'ProjectGuid')
-    guid = str(uuid.uuid4()).upper()
+    guid = str(uuid.uuid5(options.project_guid_namespace, "%s/%s" % (options.repo_name, path_relative_to_source_repo))).upper()
     guid_element.text = f'{{{guid}}}'
     namespace = xml.SubElement(property_group, 'RootNamespace')
     namespace.text = project_namespace
