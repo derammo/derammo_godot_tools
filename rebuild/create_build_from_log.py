@@ -785,7 +785,7 @@ def main():
 
     # remember mapping to modules, because we are now putting them in a different order
     module_prefix_index = {}
-    for index in range(0, len(prefix_list)-1):
+    for index in range(0, len(prefix_list)):
         module_prefix_index[prefix_list[index]] = modules[module_list[index]]
 
     # sort for binary searches below
@@ -795,6 +795,16 @@ def main():
         header_path = header_long_path.relative_to(options.source_repo_path)
         header_str = str(header_path)
         search_str = str(header_path.parent)
+
+        # special cases for unusual structure
+        match search_str:
+            case 'modules':
+                search_str = 'modules\\modules'
+            case 'platform\\windows':
+                search_str = 'platform\\platform'
+            case 'platform\\windows\\export':
+                search_str = 'platform\\platform'
+
         index = bisect.bisect_right(prefix_list, search_str)
         if index >= len(prefix_list) or index < 1:
             last = len(prefix_list) - 1
@@ -809,6 +819,10 @@ def main():
                 # TODO: implement tests
                 # ignore these not being assigned, since that is currently normal
                 continue
+            print(f'header not assigned to any module: {header_str}')
+            continue
+        if not search_str.startswith(prefix_list[index-1]):
+            # random match that does not actually fall into that subtree
             print(f'header not assigned to any module: {header_str}')
             continue
         module_prefix_index[prefix_list[index-1]].headers.append(header_str)
