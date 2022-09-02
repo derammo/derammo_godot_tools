@@ -146,7 +146,10 @@ class ModuleInfo(TargetInfo):
     # XXX port to single Dict[str, TargetInfo]
     # NOTE: this is the master collection
     sources: Dict[str, Dict] = field(default_factory=dict)
-    headers: List[str] = field(default_factory=list)
+
+    # indexed by actual XML name of the type of item to create in the project
+    other_items: Dict[str, List[str]] = field(default_factory=dict)
+
     opaque_objects: List[str] = field(default_factory=list)
     src_includes: Dict[str, Dict[str, Dict]] = field(default_factory=dict)
     src_defines: Dict[str, Dict[str, Dict]] = field(default_factory=dict)
@@ -247,7 +250,7 @@ def build_additional(parent, element_tag, flags_dictionary, condition=None):
     additional_options.text = all_settings
 
 
-# NOTE: this includes both compiled and opaque obj sources as well as headers
+# NOTE: this includes both compiled and opaque obj sources as well as headers, natvis, etc.
 def write_sources(path, module: ModuleInfo, condition=None):
     doc = create_project()
     project = doc.getroot()
@@ -265,17 +268,13 @@ def write_sources(path, module: ModuleInfo, condition=None):
         if compile_path in module.src_includes:
             build_additional(clcompile, 'AdditionalIncludeDirectories', module.src_includes[compile_path])
 
-    headers = xml.SubElement(project, 'ItemGroup')
-    if condition:
-        headers.set('Condition', f"'$(Configuration)|$(Platform)'=='{condition}'")
-    for header_path in module.headers:
-        xml.SubElement(headers, 'ClInclude', { 'Include': str(solution_root / header_path) })
+    for item_type in module.other_items.keys():
+        other = xml.SubElement(project, 'ItemGroup')
+        if condition:
+            other.set('Condition', f"'$(Configuration)|$(Platform)'=='{condition}'")
+        for item_path in module.other_items[item_type]:
+            xml.SubElement(other, item_type, { 'Include': str(solution_root / item_path) })
 
-    objects = xml.SubElement(project, 'ItemGroup')
-    if condition:
-        objects.set('Condition', f"'$(Configuration)|$(Platform)'=='{condition}'")
-    for obj_path in module.opaque_objects:
-        xml.SubElement(objects, 'Object', { 'Include': str(solution_root / obj_path) })
     write_to_file(path, doc)
 
 
@@ -523,7 +522,7 @@ def build_module(name, module_data) -> ModuleInfo:
         module.libpaths = process_libpath(module_data['libpath'], True)
 
     if 'sources' in module_data:
-        module.sources, module.opaque_objects = calculate_item_settings(module_data['sources'].split(" "),
+        module.sources, module.other_items['Object'] = calculate_item_settings(module_data['sources'].split(" "),
                                                                         ['cflags', 'ccflags', 'cxxflags', 'cppflags'],
                                                                         process_flags)
         module.includes, module.src_includes = calculate_overrride_flags(module_data['sources'].split(" "), ['include'],
@@ -628,15 +627,23 @@ def render(target_path: str, source_path: str):
         location = resolve(reference, project, location, child)
     write_to_file(target_path, doc)
 
-
 def write_flat_filters(path: str, module: ModuleInfo):
+    SOURCE_FILES = 'Source Files'
+    OTHER_FILES = {
+        'CLInclude': 'Header Files',
+        'Object': 'Object Files from SCons Build',
+        'Natvis': 'Natvis Parser Definitions'
+    }
+    OTHER_EXTENSIONS = {
+        'CLInclude': 'h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd',
+        'Object': 'obj',
+        'Natvis': 'natvis'
+    }
+
     doc = create_project()
     project = doc.getroot()
     filter_item_group = xml.SubElement(project, 'ItemGroup')
     solution_root = pathlib.Path(os.path.relpath(options.source_repo_path, str(pathlib.Path(path).parent)))
-    SOURCE_FILES = 'Source Files'
-    HEADER_FILES = 'Header Files'
-    OBJECT_FILES = 'Object Files from SCons Build'
 
     write_filter_decl(filter_item_group, SOURCE_FILES, 'cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx')
     item_group = xml.SubElement(project, 'ItemGroup')
@@ -646,22 +653,16 @@ def write_flat_filters(path: str, module: ModuleInfo):
         filter = xml.SubElement(clcompile, 'Filter')
         filter.text = SOURCE_FILES
 
-    write_filter_decl(filter_item_group, HEADER_FILES, 'h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd')
-    item_group = xml.SubElement(project, 'ItemGroup')
-    for compile_path in module.headers:
-        clinclude = xml.SubElement(item_group, 'ClInclude')
-        clinclude.set('Include', str(solution_root / compile_path))
-        filter = xml.SubElement(clinclude, 'Filter')
-        filter.text = HEADER_FILES
-
-    if module.opaque_objects and len(module.opaque_objects) > 0:
-        write_filter_decl(filter_item_group, OBJECT_FILES, 'obj')
-        item_group = xml.SubElement(project, 'ItemGroup')
-        for obj_path in module.opaque_objects:
-            object = xml.SubElement(item_group, 'Object')
-            object.set('Include', str(solution_root / obj_path))
-            filter = xml.SubElement(object, 'Filter')
-            filter.text = OBJECT_FILES
+    if module.other_items and len(module.other_items) > 0:
+        for item_type in module.other_items.keys():
+            title = OTHER_FILES.pop(item_type, item_type)
+            write_filter_decl(filter_item_group, title, OTHER_EXTENSIONS.pop(item_type, ''))
+            item_group = xml.SubElement(project, 'ItemGroup')
+            for item_path in module.other_items[item_type]:
+                object = xml.SubElement(item_group, item_type)
+                object.set('Include', str(solution_root / item_path))
+                filter = xml.SubElement(object, 'Filter')
+                filter.text = title
 
     write_to_file(path, doc)
 
@@ -671,7 +672,6 @@ def write_file_system_filters(path: str, module: ModuleInfo):
     project = doc.getroot()
     filter_item_group = xml.SubElement(project, 'ItemGroup')
     solution_root = pathlib.Path(os.path.relpath(options.source_repo_path, str(pathlib.Path(path).parent)))
-    OBJECT_FILES = 'Object Files from SCons Build'
 
     filters = {}
 
@@ -690,29 +690,22 @@ def write_file_system_filters(path: str, module: ModuleInfo):
         filter = xml.SubElement(clcompile, 'Filter')
         filter.text = str(filter_path)
 
-    item_group = xml.SubElement(project, 'ItemGroup')
-    for compile_path in module.headers:
-        clinclude = xml.SubElement(item_group, 'ClInclude')
-        clinclude.set('Include', str(solution_root / compile_path))
-        filter_path = pathlib.Path(compile_path).parent
-        walk = filter_path
-        while len(walk.parts) > 0:
-            if walk in filters:
-                break
-            filters[walk] = walk
-            write_filter_decl(filter_item_group, str(walk), '')
-            walk = walk.parent
-        filter = xml.SubElement(clinclude, 'Filter')
-        filter.text = str(filter_path)
-
-    if module.opaque_objects and len(module.opaque_objects) > 0:
-        write_filter_decl(filter_item_group, OBJECT_FILES, 'obj')
-        item_group = xml.SubElement(project, 'ItemGroup')
-        for obj_path in module.opaque_objects:
-            object = xml.SubElement(item_group, 'Object')
-            object.set('Include', str(solution_root / obj_path))
-            filter = xml.SubElement(object, 'Filter')
-            filter.text = OBJECT_FILES
+    if module.other_items and len(module.other_items) > 0:
+        for item_type in module.other_items.keys():
+            item_group = xml.SubElement(project, 'ItemGroup')
+            for item_path in module.other_items[item_type]:
+                item_element = xml.SubElement(item_group, item_type)
+                item_element.set('Include', str(solution_root / item_path))
+                filter_path = pathlib.Path(item_path).parent
+                walk = filter_path
+                while len(walk.parts) > 0:
+                    if walk in filters:
+                        break
+                    filters[walk] = walk
+                    write_filter_decl(filter_item_group, str(walk), '')
+                    walk = walk.parent
+                filter = xml.SubElement(item_element, 'Filter')
+                filter.text = str(filter_path)
 
     write_filter_decl(filter_item_group, 'Lost and Found', 'cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx;h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd')
     write_to_file(path, doc)
@@ -776,7 +769,7 @@ def main():
             shutil.copy(f'templates/{options.vs_version}/executable/_executable_.vcxproj',
                         module.path / f'{module.path.name}_open.vcxproj')
 
-    # second pass: sort headers to modules
+    # second pass: sort other files not explicitly mentioned in log to modules
     module_list: list = list(modules.keys())
     prefix_list: list = [str(pathlib.Path(key).parent if not is_module_path(key) else key) for key in module_list]
 
@@ -791,41 +784,8 @@ def main():
     # sort for binary searches below
     prefix_list.sort()
 
-    for header_long_path in pathlib.Path(options.source_repo_path).glob('**/*.h'):
-        header_path = header_long_path.relative_to(options.source_repo_path)
-        header_str = str(header_path)
-        search_str = str(header_path.parent)
-
-        # special cases for unusual structure
-        match search_str:
-            case 'modules':
-                search_str = 'modules\\modules'
-            case 'platform\\windows':
-                search_str = 'platform\\platform'
-            case 'platform\\windows\\export':
-                search_str = 'platform\\platform'
-
-        index = bisect.bisect_right(prefix_list, search_str)
-        if index >= len(prefix_list) or index < 1:
-            last = len(prefix_list) - 1
-            if index > 0 and search_str.startswith(prefix_list[last]):
-                # fell off the end but has valid prefix
-                module_prefix_index[prefix_list[last]].headers.append(header_str)
-                continue
-            if header_str.startswith('thirdparty\\'):
-                # ignore these not being assigned, since that is currently normal
-                continue
-            if header_str.startswith('tests\\'):
-                # TODO: implement tests
-                # ignore these not being assigned, since that is currently normal
-                continue
-            print(f'header not assigned to any module: {header_str}')
-            continue
-        if not search_str.startswith(prefix_list[index-1]):
-            # random match that does not actually fall into that subtree
-            print(f'header not assigned to any module: {header_str}')
-            continue
-        module_prefix_index[prefix_list[index-1]].headers.append(header_str)
+    assign_other_files(module_prefix_index, prefix_list, 'CLInclude', 'h')
+    assign_other_files(module_prefix_index, prefix_list, 'Natvis', 'natvis')
 
     # third pass: write sources, resolve dependencies, write solution, write filters
     for name, module in modules.items():
@@ -842,6 +802,50 @@ def main():
             render(f'{base_path}.vcxproj', f'{base_path}_open.vcxproj')
             shutil.copy(f'{base_path}_open.vcxproj.filters', f'{base_path}.vcxproj.filters')
     write_solution()
+
+
+def assign_other_files(module_prefix_index, prefix_list, item_type, extension):
+    for long_path in pathlib.Path(options.source_repo_path).glob('**/*.%s' % extension):
+        path = long_path.relative_to(options.source_repo_path)
+        path_str = str(path)
+        search_str = str(path.parent)
+
+        # special cases for unusual structure
+        match search_str:
+            case 'modules':
+                search_str = 'modules\\modules'
+            case 'platform\\windows':
+                search_str = 'platform\\platform'
+            case 'platform\\windows\\export':
+                search_str = 'platform\\platform'
+
+        index = bisect.bisect_right(prefix_list, search_str)
+        if index >= len(prefix_list) or index < 1:
+            last = len(prefix_list) - 1
+            if index > 0 and search_str.startswith(prefix_list[last]):
+                # fell off the end but has valid prefix
+                if not item_type in module_prefix_index[module_index].other_items:
+                    module_prefix_index[module_index].other_items[item_type] = []
+                module_prefix_index[module_index].other_items[item_type].append(path_str)
+                continue
+            if path_str.startswith('thirdparty\\'):
+                # ignore these not being assigned, since that is currently normal
+                continue
+            if path_str.startswith('tests\\'):
+                # TODO: implement tests
+                # ignore these not being assigned, since that is currently normal
+                continue
+            print(f'header not assigned to any module: {path_str}')
+            continue
+        if not search_str.startswith(prefix_list[index - 1]):
+            # random match that does not actually fall into that subtree
+            print(f'file not assigned to any module: {path_str}')
+            continue
+        module_index = prefix_list[index - 1]
+        if not item_type in module_prefix_index[module_index].other_items:
+            module_prefix_index[module_index].other_items[item_type] = []
+        module_prefix_index[module_index].other_items[item_type].append(path_str)
+
 
 def get_project_basename(child):
     return child.find("target").text.split(".windows.")[0]
